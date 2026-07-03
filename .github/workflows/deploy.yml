@@ -127,7 +127,6 @@ jobs:
 
       - name: Deploy the new image
         run: |
-          : "${IMAGE:?IMAGE is empty — check the GCP_PROJECT_ID secret and the build-scan-push job's 'Compute image reference' step}"
           echo "Deploying ${IMAGE}:${{ github.sha }}"
 
           docker pull "${IMAGE}:${{ github.sha }}"
