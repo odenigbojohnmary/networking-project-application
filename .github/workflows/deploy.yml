@@ -25,8 +25,6 @@ env:
 jobs:
   build-scan-push:
     runs-on: ubuntu-latest
-    outputs:
-      image: ${{ steps.vars.outputs.image }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -89,14 +87,14 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     env:
-      IMAGE_TAG: ${{ needs.build-scan-push.outputs.image }}:${{ github.sha }}
+      IMAGE_TAG: ${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
       DOCKER_CONTEXT: vm
     steps:
-      - name: Verify image reference from build job
+      - name: Verify image reference
         run: |
           echo "IMAGE_TAG resolved to: ${{ env.IMAGE_TAG }}"
-          if [ -z "${{ needs.build-scan-push.outputs.image }}" ]; then
-            echo "::error::needs.build-scan-push.outputs.image is empty — the build-scan-push job's 'Compute image reference' step did not hand off an output. Check that job's 'Compute image reference' log line first."
+          if [ -z "${{ secrets.GCP_PROJECT_ID }}" ]; then
+            echo "::error::GCP_PROJECT_ID secret is empty or unset — set it in repo Settings > Secrets and variables > Actions."
             exit 1
           fi
 
