@@ -87,16 +87,16 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     env:
-      IMAGE_TAG: ${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
       DOCKER_CONTEXT: vm
     steps:
-      - name: Verify image reference
+      - name: Compute image reference
         run: |
-          echo "IMAGE_TAG resolved to: ${{ env.IMAGE_TAG }}"
           if [ -z "${{ secrets.GCP_PROJECT_ID }}" ]; then
             echo "::error::GCP_PROJECT_ID secret is empty or unset — set it in repo Settings > Secrets and variables > Actions."
             exit 1
           fi
+          echo "IMAGE_TAG=${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}" >> "$GITHUB_ENV"
+          echo "IMAGE_TAG set for the rest of this job."
 
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
