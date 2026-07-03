@@ -89,9 +89,17 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     env:
-      IMAGE: ${{ needs.build-scan-push.outputs.image }}
+      IMAGE_TAG: ${{ needs.build-scan-push.outputs.image }}:${{ github.sha }}
       DOCKER_CONTEXT: vm
     steps:
+      - name: Verify image reference from build job
+        run: |
+          echo "IMAGE_TAG resolved to: ${{ env.IMAGE_TAG }}"
+          if [ -z "${{ needs.build-scan-push.outputs.image }}" ]; then
+            echo "::error::needs.build-scan-push.outputs.image is empty — the build-scan-push job's 'Compute image reference' step did not hand off an output. Check that job's 'Compute image reference' log line first."
+            exit 1
+          fi
+
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
@@ -127,9 +135,9 @@ jobs:
 
       - name: Deploy the new image
         run: |
-          echo "Deploying ${IMAGE}:${{ github.sha }}"
+          echo "Deploying ${{ env.IMAGE_TAG }}"
 
-          docker pull "${IMAGE}:${{ github.sha }}"
+          docker pull "${{ env.IMAGE_TAG }}"
 
           docker stop "${{ env.CONTAINER_NAME }}" 2>/dev/null || true
           docker rm "${{ env.CONTAINER_NAME }}" 2>/dev/null || true
@@ -139,7 +147,7 @@ jobs:
             --restart unless-stopped \
             -p "${{ env.HOST_PORT }}:3000" \
             --env-file jmzops.env \
-            "${IMAGE}:${{ github.sha }}"
+            "${{ env.IMAGE_TAG }}"
 
           docker image prune -f || true
 
