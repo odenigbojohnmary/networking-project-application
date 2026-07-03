@@ -1,0 +1,170 @@
+name: Build, Scan, Push and Deploy jmzops
+
+# Builds the Docker image, runs a Trivy vulnerability scan against it
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  security-events: write 
+
+env:
+  REGION: us-central1
+  REPOSITORY: networking-app
+  IMAGE_NAME: jmzops
+  REGISTRY_HOST: networking-app
+  CONTAINER_NAME: jmzops
+  HOST_PORT: 5000
+  DB_PORT: 3306
+  DB_NAME: appdb
+
+jobs:
+  build-scan-push:
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.vars.outputs.image }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${{ env.REGION }}-docker.pkg.dev" --quiet
+
+      - name: Compute image reference
+        id: vars
+        run: |
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Build image
+        run: |
+          docker build \
+            -t "${{ steps.vars.outputs.image }}:${{ github.sha }}" \
+            -t "${{ steps.vars.outputs.image }}:latest" \
+            .
+
+      - name: Trivy scan — full report (informational, uploaded to Security tab)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: "${{ steps.vars.outputs.image }}:${{ github.sha }}"
+          format: sarif
+          output: trivy-results.sarif
+          severity: "CRITICAL,HIGH,MEDIUM"
+          exit-code: "0"
+
+      - name: Upload Trivy report to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Trivy scan — gate on CRITICAL vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: "${{ steps.vars.outputs.image }}:${{ github.sha }}"
+          format: table
+          severity: "CRITICAL"
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Push image
+        run: |
+          docker push "${{ steps.vars.outputs.image }}:${{ github.sha }}"
+          docker push "${{ steps.vars.outputs.image }}:latest"
+
+  deploy:
+    name: Deploy to app VM
+    needs: build-scan-push
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      IMAGE: ${{ needs.build-scan-push.outputs.image }}
+    steps:
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.GCP_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${{ secrets.GCP_VM_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Write container env file
+        run: |
+          cat > jmzops.env << EOF
+          PORT=3000
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_PORT=${{ env.DB_PORT }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_NAME=${{ env.DB_NAME }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          EOF
+
+      - name: Write remote deploy script
+        run: |
+          cat > deploy_remote.sh << 'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          IMAGE="$1"
+          TAG="$2"
+          TOKEN="$3"
+          REGISTRY_HOST="$4"
+          CONTAINER_NAME="$5"
+          HOST_PORT="$6"
+
+          echo "$TOKEN" | docker login -u oauth2accesstoken --password-stdin "https://${REGISTRY_HOST}"
+          docker pull "${IMAGE}:${TAG}"
+
+          docker stop "${CONTAINER_NAME}" >/dev/null 2>&1 || true
+          docker rm "${CONTAINER_NAME}" >/dev/null 2>&1 || true
+
+          docker run -d \
+            --name "${CONTAINER_NAME}" \
+            --restart unless-stopped \
+            -p "${HOST_PORT}:3000" \
+            --env-file /tmp/jmzops.env \
+            "${IMAGE}:${TAG}"
+
+          docker image prune -f >/dev/null 2>&1 || true
+          rm -f /tmp/jmzops.env
+          SCRIPT
+          chmod +x deploy_remote.sh
+
+      - name: Copy env file and deploy script to the VM
+        run: |
+          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
+            jmzops.env deploy_remote.sh \
+            "${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_HOST }}:/tmp/"
+
+      - name: Run remote deploy script
+        run: |
+          AR_TOKEN=$(gcloud auth print-access-token)
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
+            "${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_HOST }}" \
+            "chmod +x /tmp/deploy_remote.sh && /tmp/deploy_remote.sh '${{ env.IMAGE }}' '${{ github.sha }}' '$AR_TOKEN' '${{ env.REGION }}-docker.pkg.dev' '${{ env.CONTAINER_NAME }}' '${{ env.HOST_PORT }}' && rm -f /tmp/deploy_remote.sh"
+
+      - name: Smoke test
+        run: |
+          sleep 8
+          curl -fsS "http://${{ secrets.GCP_VM_HOST }}:${{ env.HOST_PORT }}/" > /dev/null \
+            && echo "jmzops responded on port ${{ env.HOST_PORT }}" \
+            || (echo "Smoke test failed" && exit 1)

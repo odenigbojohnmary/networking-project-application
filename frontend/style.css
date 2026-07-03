@@ -1,0 +1,56 @@
+  :root {
+    --green: #1a9c5d; --yellow: #d49a00; --orange: #d4690a; --red: #c0392b; --blue: #2563eb;
+    --bg: #f5f6f8; --card: #ffffff; --border: #e2e4e8; --text: #1f2430; --muted: #6b7280;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: var(--bg); color: var(--text); }
+  header { background: var(--card); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
+  header h1 { margin: 0; font-size: 20px; }
+  nav button { background: none; border: none; padding: 8px 14px; margin-left: 6px; cursor: pointer; border-radius: 6px; font-size: 14px; }
+  nav button.active { background: var(--blue); color: white; }
+  main { max-width: 920px; margin: 0 auto; padding: 24px; }
+  .tab { display: none; }
+  .tab.active { display: block; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+  .overall-banner { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-radius: 10px; margin-bottom: 20px; font-weight: 600; font-size: 16px; }
+  .status-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+  .operational { background: var(--green); }
+  .degraded { background: var(--yellow); }
+  .partial_outage { background: var(--orange); }
+  .major_outage { background: var(--red); }
+  .maintenance { background: var(--blue); }
+  .investigating { background: var(--orange); }
+  .identified { background: var(--yellow); }
+  .monitoring { background: var(--blue); }
+  .resolved { background: var(--green); }
+  .banner-operational { background: #e6f6ee; color: var(--green); }
+  .banner-degraded { background: #fdf3da; color: var(--yellow); }
+  .banner-partial_outage { background: #fbe7d8; color: var(--orange); }
+  .banner-major_outage { background: #fbe1df; color: var(--red); }
+  .banner-maintenance { background: #e3ecfd; color: var(--blue); }
+  .component-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .component-row:last-child { border-bottom: none; }
+  .badge { font-size: 12px; padding: 3px 9px; border-radius: 12px; color: white; text-transform: capitalize; }
+  .group-title { font-size: 13px; color: var(--muted); text-transform: uppercase; margin: 18px 0 6px; letter-spacing: .05em; }
+  .incident-card { border-left: 4px solid var(--orange); padding-left: 14px; }
+  .incident-card.resolved { border-left-color: var(--green); }
+  .update-line { font-size: 13px; margin: 6px 0; color: var(--muted); }
+  .update-line strong { color: var(--text); text-transform: capitalize; }
+  form.inline { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  input, select, textarea { padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
+  button.primary { background: var(--blue); color: white; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+  button.danger { background: var(--red); color: white; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .admin-section h2 { font-size: 16px; margin: 0 0 10px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px; text-align: center; }
+  .stat .value { font-size: 24px; font-weight: 700; }
+  .stat .label { font-size: 12px; color: var(--muted); }
+  .checkbox-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+  small.muted { color: var(--muted); }
+  .role-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #eef1f6; color: var(--muted); margin-left: 8px; text-transform: capitalize; }
+  .uptime-bar { display: flex; gap: 2px; align-items: center; }
+  .up { background: var(--green); }
+  .down { background: var(--red); }
+  .unknown { background: #c7cbd3; }
