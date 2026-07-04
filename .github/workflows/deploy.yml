@@ -23,6 +23,8 @@ env:
   DB_NAME: appdb
 
 jobs:
+
+# The Build, scan and push part of the ci/cd pipeline.
   build-scan-push:
     runs-on: ubuntu-latest
     steps:
@@ -51,10 +53,10 @@ jobs:
           echo "Computed image reference: $IMAGE"
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
 
-      - name: Build image
+      - name: Build Docker image
         run: docker build -t "${{ steps.vars.outputs.image }}:${{ github.sha }}" .
 
-      - name: Trivy scan — full report (informational, uploaded to Security tab)
+      - name: Trivy scan with full report (CRITICAL, HIGH, MEDIUM)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: "${{ steps.vars.outputs.image }}:${{ github.sha }}"
@@ -78,9 +80,10 @@ jobs:
           exit-code: "1"
           ignore-unfixed: true
 
-      - name: Push image
+      - name: Push Docker image to GCP Artifact Registry
         run: docker push "${{ steps.vars.outputs.image }}:${{ github.sha }}"
 
+# The Deploy part of the ci/cd pipeline.
   deploy:
     name: Deploy to app VM
     needs: build-scan-push
@@ -89,7 +92,7 @@ jobs:
     env:
       DOCKER_CONTEXT: vm
     steps:
-      - name: Compute image reference
+      - name: Compute image reference for the deploy step
         run: |
           if [ -z "${{ secrets.GCP_PROJECT_ID }}" ]; then
             echo "::error::GCP_PROJECT_ID secret is empty or unset — set it in repo Settings > Secrets and variables > Actions."
@@ -109,17 +112,17 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker "${{ env.REGION }}-docker.pkg.dev" --quiet
 
-      - name: Configure SSH key
+      - name: Configure SSH key for GCP App Instance
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.GCP_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H "${{ secrets.GCP_VM_HOST }}" >> ~/.ssh/known_hosts
 
-      - name: Point Docker at the app VM
+      - name: Point Docker at the app Instance using SSH (Docker context)
         run: docker context create vm --docker "host=ssh://${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_HOST }}"
 
-      - name: Write container env file
+      - name: Write container env file for the app Instance
         run: |
           cat > jmzops.env << EOF
           PORT=3000
@@ -131,7 +134,7 @@ jobs:
           JWT_SECRET=${{ secrets.JWT_SECRET }}
           EOF
 
-      - name: Deploy the new image
+      - name: Deploy the new docker image to the app Instance
         run: |
           echo "Deploying ${{ env.IMAGE_TAG }}"
 
@@ -149,11 +152,11 @@ jobs:
 
           docker image prune -f || true
 
-      - name: Remove the Docker context (housekeeping)
+      - name: Remove the Docker context after the deploy step
         if: always()
         run: docker context rm -f vm || true
 
-      - name: Smoke test
+      - name: Smoke test to ensure the app is up and healthy after the deploy step
         run: |
           sleep 8
           curl -fsS "http://${{ secrets.GCP_VM_HOST }}:${{ env.HOST_PORT }}/" > /dev/null \
