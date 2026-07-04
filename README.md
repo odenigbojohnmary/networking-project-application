@@ -249,11 +249,11 @@ JmZOps/
    DB_PORT=3306
    DB_USER=root
    DB_PASSWORD=
-   DB_NAME=statuswatch_db
+   DB_NAME=
    JWT_SECRET=change-me
    ADMIN_NAME=Default Admin
-   ADMIN_EMAIL=admin@statuswatch.local
-   ADMIN_PASSWORD=ChangeMe123!
+   ADMIN_EMAIL=
+   ADMIN_PASSWORD=
    ```
    Every value has a fallback default in `backend/config.js`, so a `.env` file is only strictly required to point at a non-local MySQL instance or to set a real `JWT_SECRET` and admin password.
 3. Ensure a MySQL 8+ server is reachable with the credentials above. `backend/db.js` creates the database and all tables automatically on first run, and seeds one `super_admin` staff account from the `ADMIN_*` variables if the `staff` table is empty.
